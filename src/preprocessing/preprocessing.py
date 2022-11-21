@@ -5,6 +5,7 @@ import logging
 import math
 import warnings
 from sklearn.preprocessing import StandardScaler
+import random
 warnings.filterwarnings('ignore')
 
 logging.basicConfig(level=logging.INFO)
@@ -88,28 +89,57 @@ class NumericalMasker(Transformer):
         self._corr_matrix = input_df.corr().abs()
         return self._corr_matrix
 
-    def _set_ranking_matrix(self,input_df,rank_method):
-        self._ranking_matrix = input_df.rank(ascending=False, method=rank_method)
+    def _set_ranking_matrix(self,input_df,rank_method, na_option = 'last'):
+        self._ranking_matrix = input_df.rank(ascending = False, method = rank_method, na_option = 'first')
         return self._ranking_matrix 
 
     def _select_mask_indices(self, input_df, target_col, selected_cols, col_weights):
+        pass
 
+    def _create_index_weights(self):
+        
 
-    def mask(self, input_df, target_col, rank_method = 'first', normalize_weights = True, selected_cols = None,seed = None,frac_na=0.1, max_corr = 0.9, col_weights = None, no_cols = None):
+    def mask(self, input_df, target_col, k = 4, n = None, prob_range_non_mask = (0,0.5), prob_range_mask = (0.5,1), frac_na=0.1, rank_method = 'first', normalize_weights = True, selected_cols = None, seed = None,  max_corr = 0.9, min_corr = 0.3, col_weights = None, no_cols = None):
         super()._set_raw_data(input_df)
-        corr_matrix = self._set_corr_matrix(input_df)
         if selected_cols == None:
             if no_cols == None:
-                tot_no_cols = len(input_df.columns.values)
-                no_cols = math.sqrt(tot_no_cols)
-        params = dict(corr_matrix[target_col].nlargest(no_cols))
-        ranking_matrix = self._set_ranking_matrix(input_df,rank_method)
+                tot_no_cols = len(input_df.select_dtypes(include=np.number).columns.values)
+                no_cols = int(math.sqrt(tot_no_cols))
+        else:
+            input_df = input_df[selected_cols]
+        corr_matrix = self._set_corr_matrix(input_df)
+        if col_weights == None:
+            col_weights = dict(corr_matrix[target_col].nlargest(no_cols))
+        col_keep = col_weights.keys()
+        ranking_matrix = self._set_ranking_matrix(input_df[col_keep],rank_method)
         # weighted_ranking_matrix = ranking_matrix.assign(**params).mul(ranking_matrix).sum(1)
-        weighted_ranking_matrix = ranking_matrix.mul(pd.Series(params), axis=1)
-        weighted_index = weighted_ranking_matrix.rank().sum(axis=1)
-        test_weights = [0.2, 0.2, 0.2, 0.4]
-        df1.sample(n = 3, weights = test_weights)
-        
+        weighted_ranking_matrix = ranking_matrix.mul(pd.Series(col_weights), axis=1)
+        #weighted_index = weighted_ranking_matrix.sum(axis=1).sort_values().reset_index()
+        similar_ordered_index = weighted_ranking_matrix.sum(axis=1).sort_values().rename_axis('original_index').reset_index(name='score')
+        if n == None:
+            n = int(frac_na *input_df.shape[0])
+        cluster_df_list = []
+        end = 0
+        increment = int(similar_ordered_index.shape[0]/k)
+        for i in range(1,k + 1):
+            start = end
+            end = start + increment
+            # start = int((similar_ordered_index.shape[0]/(k +1)) * i)
+            # end = int((similar_ordered_index.shape[0]/(k + 1)) * (i + 1))
+            nrows = range(start,end)
+            k_n = int(n/k)
+            ix = random.randint(nrows.start, nrows.stop-k_n)
+            cluster_index_df = similar_ordered_index.iloc[ix:ix+k_n, :]
+            cluster_index_df['cluster_id'] = i
+            cluster_df_list.append(cluster_index_df)
+        all_cluster_index_df = pd.concat(cluster_df_list)
+        weights_all = np.random.uniform(low=prob_range_non_mask[0], high=prob_range_non_mask[1], size=(input_df.shape[0],)) # Non masked probability distribution
+        update_index_list = all_cluster_index_df['original_index'].to_list()
+        weights_all[update_index_list] = np.random.uniform(low=prob_range_mask[0], high=prob_range_mask[1], size=(all_cluster_index_df.shape[0],)) # Masking probability distribution
+        mask_df = input_df.sample(n = n, weights = weights_all,random_state = seed) # weighted random sample of rows to mask
+        mask_df['mask_ind'] = 1
+        output_df = input_df.join(mask_df[['mask_ind']]) # join to add mask_ind column to raw data
+        output_df['mask_ind'] = output_df['mask_ind'].notnull().astype(int) # replacing null in mask_ind field from join with 0 
         if normalize_weights == True:
             #
             corr_matrix[target_col]
