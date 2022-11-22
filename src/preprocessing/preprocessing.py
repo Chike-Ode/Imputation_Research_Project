@@ -4,7 +4,7 @@ from src.config import logger
 import logging
 import math
 import warnings
-from sklearn.preprocessing import StandardScaler
+# from sklearn.preprocessing import StandardScaler
 import random
 warnings.filterwarnings('ignore')
 
@@ -38,26 +38,26 @@ class NumericalVariableCleaner(Transformer):
         super().__init__(logger=logger)
         self._logger = logger
 
-    def clean(self,input_df,col_keep = None,col_drop = None):
+    def clean(self,input_df,col_keep = None,col_ignore = None):
         self._logger.info('Cleaning numerical fields.')
         super()._set_raw_data(input_df)
         self._logger.info('Stored data frame inside object.')
         self._logger.info('Selecting columns to clean.')
         if col_keep == None:
             self._logger.info('Columns to clean is not specified.')
-            if col_drop == None:
+            if col_ignore == None:
                 self._logger.info('All columns will be cleaned.')
                 col_keep = input_df.columns.values
             else:
-                self._logger.info(f'Dropping the following specified columns: {col_drop}')
-                col_keep = np.delete(input_df.columns.values, np.where(input_df.columns.values == col_drop))
+                self._logger.info(f'Dropping the following specified columns: {col_ignore}')
+                col_keep = np.delete(input_df.columns.values, np.where(input_df.columns.values == col_ignore))
         self._logger.info(f'Cleaning the following fields: {col_keep}')
-        output_df = input_df[col_drop]
+        output_df = input_df[col_ignore]
         measure_dict = {}
         self._logger.info('Removing unit of measure from the actual value in the columns such that the fields are purely numerical.')
         self._logger.info('Storing unit of measure in the _measure_units attribute of the object.')
         for col in col_keep:
-            if col == col_drop:
+            if col == col_ignore:
                 continue
             try:
                 output_df[col] = pd.to_numeric(input_df[col].str.extract('([-+]?\d*\.?\d+)')[0],errors='coerce')
@@ -77,8 +77,8 @@ class NumericalVariableCleaner(Transformer):
 class NumericalMasker(Transformer):
     """
     Date: 2022-11-18
-    Description: The goal of this class is to clean the dataframe by
-    stripping the unit of measure from dataframe value --> i.e. 100mg to 100
+    Description: The goal of this class is to mask a certain field of the data set
+    By looking at the most correlated attributes to that feature
     """
     def __init__(self):
         super().__init__(logger=logger)
@@ -87,10 +87,12 @@ class NumericalMasker(Transformer):
 
     def _set_corr_matrix(self,input_df):
         self._corr_matrix = input_df.corr().abs()
+        self._logger.info('Finished creating correlation matrix.')
         return self._corr_matrix
 
-    def _set_ranking_matrix(self,input_df,rank_method, na_option = 'first'): # TODO fix na_option
+    def _set_ranking_matrix(self,input_df,rank_method, na_option = 'bottom'): # TODO fix na_option
         self._ranking_matrix = input_df.rank(ascending = False, method = rank_method, na_option = na_option)
+        self._logger.info('Finished creating ranking matrix.')
         return self._ranking_matrix 
 
     def _create_index_weights(self, all_cluster_index_df, input_df, prob_range_non_mask, prob_range_mask):
@@ -98,6 +100,7 @@ class NumericalMasker(Transformer):
         update_index_list = all_cluster_index_df['original_index'].to_list()
         weights_all[update_index_list] = np.random.uniform(low=prob_range_mask[0], high=prob_range_mask[1], size=(all_cluster_index_df.shape[0],)) # Masking probability distribution
         self._weights_all = weights_all
+        self._logger.info('Finished creating index weights.')
         return weights_all
 
     def _create_output_df(self,input_df,weights_all,seed,n):
@@ -124,29 +127,38 @@ class NumericalMasker(Transformer):
         
         all_cluster_index_df = pd.concat(cluster_df_list)
         self._all_cluster_index_df = all_cluster_index_df
+        self._logger.info('Finished creating clusters in the dataframe.')
         return all_cluster_index_df
 
     def _create_similar_ordered_index(self,ranking_matrix,col_weights):
         weighted_ranking_matrix = ranking_matrix.mul(pd.Series(col_weights), axis=1)
         similar_ordered_index = weighted_ranking_matrix.sum(axis=1).sort_values().rename_axis('original_index').reset_index(name='score')
         self._similar_ordered_index = similar_ordered_index
+        self._logger.info('Finished ordering similar rows.')
         return similar_ordered_index
         
     def mask(self, input_df, target_col, k = 4, n = None, no_cols_frac = 0.5, no_cols = None, prob_range_non_mask = (0,0.5), prob_range_mask = (0.5,1), frac_na=0.1, rank_method = 'first', normalize_weights = True, selected_cols = None, seed = None,  max_corr = 0.9, min_corr = 0.3, col_weights = None):
         super()._set_raw_data(input_df)
+        self._logger.info(f'Starting masking process for the {target_col} field.')
+        self._logger.info('Selecting key columns.')
         if n == None:
-            n = int(frac_na *input_df.shape[0]) # number of rows to mask
+            n = int(frac_na * input_df.shape[0]) # number of rows to mask
         if selected_cols == None:
             if no_cols == None:
                 tot_no_cols = len(input_df.select_dtypes(include=np.number).columns.values)
                 no_cols = int(tot_no_cols * no_cols_frac) # number of columns to be considered
         else:
             input_df = input_df[selected_cols]
+        self._logger.info(f'Masking {n} rows which make up for {"{:.2f}".format(float(n/input_df.shape[0])*100)}% of the observations into {k} clusters.')
         corr_matrix = self._set_corr_matrix(input_df)
         target_correlations = corr_matrix[target_col].nlargest(no_cols)
         if normalize_weights == True: # TODO fix np.where issue
             # adjusting minimum and maximum weights to be applied to ranked fields
-            target_correlations = np.where(target_correlations>max_corr,max_corr,np.where(target_correlations<min_corr,min_corr,target_correlations))
+            self._logger.info('Normalizing weights.')
+            target_correlations[target_correlations > max_corr] = max_corr
+            target_correlations[target_correlations < min_corr] = min_corr
+            # target_correlations = target_correlations.values.tolist()
+            # target_correlations = np.where(target_correlations>max_corr,max_corr,np.where(target_correlations<min_corr,min_corr,target_correlations))
         if col_weights == None:
             col_weights = dict(target_correlations)
         col_keep = col_weights.keys()
