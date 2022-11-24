@@ -21,7 +21,7 @@ def histogram(df,col,output_prefix,fig_dir,subtitle = '', title = None, show_gra
     ax.axhline(y=0.1, color='#414141', linewidth=2.5)
     fig.tight_layout()
     print(f'Image found in the "reports/figures" folder saved under {output_prefix}_{col}_hist.png')
-    plt.savefig(f'{fig_dir}{output_prefix}_{col}_hist.png')
+    plt.savefig(f'{fig_dir}{output_prefix}_{col}_hist.png',bbox_inches='tight')
     if show_graph == True:
         plt.show()
 
@@ -36,7 +36,7 @@ def box_plot(df,col,subtitle, fig_dir, output_prefix, title = None, show_graph =
     plt.boxplot(df[col],patch_artist=True)
     fig.tight_layout()
     print(f'Image found in the "reports/figures" folder saved under {output_prefix}_{col}_boxplot.png')
-    plt.savefig(f"{fig_dir}{output_prefix}_{col}_boxplot.png")
+    plt.savefig(f"{fig_dir}{output_prefix}_{col}_boxplot.png",bbox_inches='tight')
     if show_graph == True:
         plt.show()
     
@@ -51,6 +51,6 @@ def bar_plot(df,x,y,title,subtitle,fig_dir,output_prefix,n_cols = 12,show_graph 
     ax.set_ylabel(x.replace('_',' ').title())
     fig.tight_layout()
     print(f'Image found in the "reports/figures" folder saved under {output_prefix}_{x}_{y}_barchart.png')
-    plt.savefig(f"{fig_dir}{output_prefix}_{x}_{y}_barchart.png")
+    plt.savefig(f"{fig_dir}{output_prefix}_{x}_{y}_barchart.png",bbox_inches='tight')
     if show_graph == True:
         plt.show()
