@@ -90,8 +90,8 @@ class NumericalMasker(Transformer):
         self._logger.info('Finished creating correlation matrix.')
         return self._corr_matrix
 
-    def _set_ranking_matrix(self,input_df,rank_method, na_option = 'bottom'): # TODO fix na_option
-        self._ranking_matrix = input_df.rank(ascending = False, method = rank_method, na_option = na_option)
+    def _set_ranking_matrix(self,input_df,rank_method, pct_rank, na_option = 'bottom'): # TODO fix na_option
+        self._ranking_matrix = input_df.rank(ascending = False, method = rank_method, na_option = na_option, pct = pct_rank)
         self._logger.info('Finished creating ranking matrix.')
         return self._ranking_matrix 
 
@@ -103,11 +103,11 @@ class NumericalMasker(Transformer):
         self._logger.info('Finished creating index weights.')
         return weights_all
 
-    def _create_output_df(self,input_df,weights_all,seed,n):
+    def _create_output_df(self,input_df,weights_all,seed,n,target_col):
         mask_df = input_df.sample(n = n, weights = weights_all,random_state = seed) # weighted random sample of rows to mask
-        mask_df['mask_ind'] = 1
-        output_df = input_df.join(mask_df[['mask_ind']]) # join to add mask_ind column to raw data
-        output_df['mask_ind'] = output_df['mask_ind'].notnull().astype(int) # replacing null in mask_ind field from join with 0 
+        mask_df[f'mask_ind_{target_col}'] = 1
+        output_df = input_df.join(mask_df[[f'mask_ind_{target_col}']]) # join to add mask_ind column to raw data
+        output_df[f'mask_ind_{target_col}'] = output_df[f'mask_ind_{target_col}'].notnull().astype(int) # replacing null in mask_ind field from join with 0 
         self._output_df = output_df
         return output_df
 
@@ -137,7 +137,7 @@ class NumericalMasker(Transformer):
         self._logger.info('Finished ordering similar rows.')
         return similar_ordered_index
         
-    def mask(self, input_df, target_col, k = 4, n = None, no_cols_frac = 0.5, no_cols = None, prob_range_non_mask = (0,0.5), prob_range_mask = (0.5,1), frac_na=0.1, rank_method = 'first', normalize_weights = True, selected_cols = None, seed = None,  max_corr = 0.9, min_corr = 0.3, col_weights = None):
+    def mask(self, input_df, target_col, k = 4, n = None, no_cols_frac = 0.5, no_cols = None, prob_range_non_mask = (0,0.5), prob_range_mask = (0.5,1), frac_na=0.1, rank_method = 'first', normalize_weights = True, selected_cols = None, seed = None,  max_corr = 0.9, min_corr = 0.3, col_weights = None, pct_rank = True):
         super()._set_raw_data(input_df)
         self._logger.info(f'Starting masking process for the {target_col} field.')
         self._logger.info('Selecting key columns.')
@@ -162,10 +162,10 @@ class NumericalMasker(Transformer):
         if col_weights == None:
             col_weights = dict(target_correlations)
         col_keep = col_weights.keys()
-        ranking_matrix = self._set_ranking_matrix(input_df[col_keep],rank_method)
+        ranking_matrix = self._set_ranking_matrix(input_df[col_keep],rank_method, pct_rank)
         similar_ordered_index = self._create_similar_ordered_index(ranking_matrix,col_weights)
         all_cluster_index_df = self._create_clusters(similar_ordered_index,k,n)
         weights_all = self._create_index_weights(all_cluster_index_df, input_df, prob_range_non_mask, prob_range_mask)
-        output_df = self._create_output_df(input_df,weights_all,seed,n)
+        output_df = self._create_output_df(input_df,weights_all,seed,n,target_col)
         return output_df
         
