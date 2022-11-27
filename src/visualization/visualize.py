@@ -1,6 +1,7 @@
 import seaborn as sns
 from matplotlib import pyplot as plt
 from pathlib import Path
+import re
 ROOT_DIR = Path(__file__).parent.parent.parent.as_posix()
 FIG_DIR = f'{ROOT_DIR}/reports/figures/'
 
@@ -14,6 +15,10 @@ def histogram(df,col,output_prefix,fig_dir,subtitle = '', title = None, show_gra
     if title == None:
         title = col.replace('_',' ').title()
     # ax.set_title(f'{title} ',fontsize=18.5, fontweight='semibold', color='#414141')
+    # prefix = re.search('(.*?-.*?)-', output_prefix).group(1)
+    prefix = output_prefix.split("--")[0]
+    if title != None:
+        output_prefix = f'{prefix}_{title.replace(" ","_")}_{subtitle.replace(" ","_")}'.lower()
     plt.figtext(0.05, 1.05, title,fontsize=18.5, fontweight='semibold', color='#414141')
     plt.figtext(0.05, 1, subtitle,fontsize=16.5, color='#414141')
     ax.set_xlabel(col.replace('_',' ').title())
@@ -43,6 +48,10 @@ def histogram(df,col,output_prefix,fig_dir,subtitle = '', title = None, show_gra
 def box_plot(df,col,subtitle, fig_dir, output_prefix, title = None, show_graph = True,percent_col = None):
     if title == None:
         title = col.replace('_',' ').title()
+    # prefix = re.search('(.*?-.*?)-', output_prefix).group(1)
+    prefix = output_prefix.split("--")[0]
+    if title != None:
+        output_prefix = f'{prefix}_{title.replace(" ","_")}_{subtitle.replace(" ","_")}'.lower()
     fig, ax = plt.subplots()
     plt.figtext(0.05, 1.05, title,fontsize=18.5, fontweight='semibold', color='#414141')
     plt.figtext(0.05, 1, subtitle,fontsize=16.5, color='#414141')
@@ -63,6 +72,10 @@ def box_plot(df,col,subtitle, fig_dir, output_prefix, title = None, show_graph =
     
 def bar_plot(df,x,y,title,subtitle,fig_dir,output_prefix,n_cols = 12,show_graph = True, width = None, height = None,percent_col = None):
     fig, ax = plt.subplots()
+    # prefix = re.search('(.*?-.*?)-', output_prefix).group(1)
+    prefix = output_prefix.split("--")[0]
+    if title != None:
+        output_prefix = f'{prefix}_{title.replace(" ","_")}_{subtitle.replace(" ","_")}'.lower()
     df = df.nlargest(n_cols,y)
     df = df.sort_values(y, ascending = True)
     ax.barh(df[x],df[y],alpha=0.75)
