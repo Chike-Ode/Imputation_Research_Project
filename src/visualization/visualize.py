@@ -45,6 +45,27 @@ def histogram(df,col,output_prefix,fig_dir,subtitle = '', title = None, show_gra
     # if show_graph == True:
     #     plt.show()
 
+def line_plot(history, fig_dir, output_prefix, subtitle, title = 'Model Evaluation'):
+    import pandas as pd
+    s = pd.DataFrame(history.history)
+    s['epochs'] = range(1,len(s)+1)
+    fig, ax = plt.subplots()
+    plt.plot(s['epochs'],s['loss'],label = "training loss")
+    plt.plot(s['epochs'],s['val_loss'],label = "validation loss")
+    # plt.figtext(0.05, 1.05, title,fontsize=18.5, fontweight='semibold', color='#414141')
+    # plt.figtext(0.05, 1, subtitle,fontsize=16.5, color='#414141')
+
+    plt.figtext(0.05, 1.05, title.replace('_',' ').title(),fontsize=18.5, fontweight='semibold', color='#414141')
+    plt.figtext(0.05, 1, subtitle.replace('_',' ').title(),fontsize=16.5, color='#414141')
+    ax.set_xlabel("Epochs".title())
+    ax.set_ylabel('MSE')
+    # plt.boxplot(df[col],patch_artist=True)
+    plt.legend()
+    fig.tight_layout()
+    print(f'Image found in the "reports/figures" folder saved under {output_prefix}_{title.lower().replace(" ","_")}_{subtitle.replace(" ","_").lower()}_lineplot.png')
+    plt.savefig(f'{fig_dir}{output_prefix}_{title.lower().replace(" ","_")}_{subtitle.replace(" ","_").lower()}_lineplot.jpg',bbox_inches='tight')
+    
+
 def box_plot(df,col,subtitle, fig_dir, output_prefix, title = None, show_graph = True,percent_col = None):
     if title == None:
         title = col.replace('_',' ').title()
